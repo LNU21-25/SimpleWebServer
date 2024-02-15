@@ -132,7 +132,7 @@ public class SimpleWebServer {
 
         } else {
           // Unsupported file type, send 415 response
-          sendErrorResponse(outputStream, 415, "Unsupported Media Type", "The server does not support the requested file type.");
+          sendErrorResponse(outputStream, 415, "Unsupported File Type", "The server does not support the requested file type.");
         }
       } else {
         // File not found, send 404 response
@@ -187,12 +187,12 @@ public class SimpleWebServer {
   /**
    * Send a redirect response to the client.
    */
-  private static void sendRedirectResponse(OutputStream outputStream, String redirectPath) throws IOException {
+  private static void sendRedirectResponse(OutputStream outputStream) throws IOException {
     PrintWriter writer = new PrintWriter(outputStream);
     writer.println("HTTP/1.1 302 Found");
-    writer.println("Location: " + redirectPath);
+    writer.println("Location: https://www.example.com");
     writer.println();
     writer.flush();
-    System.out.println("Redirecting to: " + redirectPath);
+    System.out.println("Redirecting to: https://www.example.com");
   }
 }
