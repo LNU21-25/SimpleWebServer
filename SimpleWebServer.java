@@ -127,8 +127,7 @@ public class SimpleWebServer {
           serveFile(indexFilePath, outputStream);
 
           // Redirect, send 302 response
-          String redirectPath = filePath + "/index.html";
-          sendRedirectResponse(outputStream, redirectPath);
+          sendRedirectResponse(outputStream);
 
         } else {
           // Unsupported file type, send 415 response
