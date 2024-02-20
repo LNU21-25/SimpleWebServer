@@ -13,185 +13,236 @@ import java.nio.file.Paths;
 import java.util.Map;
 
 /**
- * A simple web server that can serve static files.
+ * A simple web server that can serve static files and handle login functionality.
  */
 public class SimpleWebServer {
 
-  private static final int bufferSize = 8192;
+    // Constants
+    private static final int BUFFER_SIZE = 8192;
+    private static final String PUBLIC_FOLDER = "public";
 
-  private static final Map<String, String> contentTypes = Map.of(
-      "html", "text/html",
-      "htm", "text/html",
-      "jpg", "image/jpeg",
-      "jpeg", "image/jpeg",
-      "png", "image/png"
-  );
+    // Map content types for different file extensions
+    private static final Map<String, String> CONTENT_TYPES = Map.of(
+            "html", "text/html",
+            "htm", "text/html",
+            "jpg", "image/jpeg",
+            "jpeg", "image/jpeg",
+            "png", "image/png"
+    );
 
-  /**
-   * Main entry point of the web server.
-   */
-  public static void main(String[] args) {
-    // Exit if port and path are not provided
-    if (args.length != 2) {
-      System.exit(1);
-    }
-
-    int port = Integer.parseInt(args[0]);
-    String publicFolder = args[1];
-    ServerSocket serverSocket = null;
-
-    try {
-      serverSocket = new ServerSocket(port);
-      System.out.println("Listening for connection on port " + port);
-
-      while (true) {
-        Socket clientSocket = serverSocket.accept();
-        handleClientRequest(clientSocket, publicFolder);
-      }
-
-    } catch (Exception e) {
-      e.printStackTrace();
-    } 
-  }
-
-  /**
-   * Handle the client request.
-   */
-  public static void handleClientRequest(Socket clientSocket, String publicFolder) {
-    try (
-        BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        OutputStream outputStream = clientSocket.getOutputStream();
-    ) {
-      String request = reader.readLine();
-      System.out.println("Received request: " + request);
-
-      String filePath = publicFolder + extractFilePath(request);
-      serveFile(filePath, outputStream);
-
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-    
-  }
-
-  /**
-   * Extract the file path from the request.
-   */
-  public static String extractFilePath(String request) {
-    String[] tokens = request.split(" ");
-    String requestPath = tokens[1];
-
-    if ("/".equals(requestPath)) {
-      return "/index.html";
-    }
-
-    Path filePath = Paths.get(requestPath).normalize();
-
-    if (Files.isDirectory(filePath)) {
-      return filePath.resolve("index.html").toString().replace(File.separatorChar, '/');
-    } else {
-      return filePath.toString().replace(File.separatorChar, '/');
-    }
-  }
-
-  /**
-   * Serve the file to the client.
-   */
-  public static void serveFile(String filePath, OutputStream outputStream) {
-    try {
-      System.out.println("Attempting to serve file: " + filePath);
-      File file = new File(filePath);
-
-      if (file.exists()) {
-        if (file.isFile()) {
-          PrintWriter writer = new PrintWriter(outputStream);
-          writer.println("HTTP/1.1 200 OK");
-          writer.println("Content-Type: " + getContentType(filePath));
-          writer.println("Content-Length: " + file.length());
-          writer.println();
-          writer.flush();
-
-          FileInputStream fileInputStream = new FileInputStream(file);
-          byte[] buffer = new byte[bufferSize];
-          int bytesRead;
-          while ((bytesRead = fileInputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
-          }
-          fileInputStream.close();
-
-          outputStream.flush();
-          System.out.println("File served successfully: " + filePath);
-
-        } else if (file.isDirectory()) {
-          String indexFilePath = filePath + "/index.html";
-          serveFile(indexFilePath, outputStream);
-
-          // Redirect, send 302 response
-          sendRedirectResponse(outputStream);
-
-        } else {
-          // Unsupported file type, send 415 response
-          sendErrorResponse(outputStream, 415, "Unsupported File Type", "The server does not support the requested file type.");
+    /**
+     * Main method to start the web server.
+     * @param args Command-line arguments: [port]
+     */
+    public static void main(String[] args) {
+        if (args.length != 1) {
+            System.exit(1);
         }
-      } else {
-        // File not found, send 404 response
-        sendErrorResponse(outputStream, 404, "Not Found", "The requested file was not found on the server.");
-        System.out.println("File not found: " + filePath);
-      }
-    } catch (IOException e) {
-      // Internal server error, send 500 response
-      try {
-        sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition that prevented it from fulfilling the request.");
-      } catch (IOException e1) {
-        e1.printStackTrace();
-      }
+
+        int port = Integer.parseInt(args[0]);
+        ServerSocket serverSocket = null;
+
+        try {
+            serverSocket = new ServerSocket(port);
+            System.out.println("Listening for connection on port " + port);
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                handleClientRequest(clientSocket);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
-  }
 
-  /**
-   * Get the content type based on the file name.
-   */
-  public static String getContentType(String filePath) {
-    String extension = getFileExtension(filePath);
-    return contentTypes.getOrDefault(extension, "application/octet-stream");
-  }
+    /**
+     * Handles client requests.
+     * @param clientSocket The client socket
+     */
+    public static void handleClientRequest(Socket clientSocket) {
+        try (
+                BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                OutputStream outputStream = clientSocket.getOutputStream();
+        ) {
+            String request = reader.readLine();
+            System.out.println("Received request: " + request);
 
-  /**
-   * Get the file extension from the file name.
-   */
-  public static String getFileExtension(String filePath) {
-    int index = filePath.lastIndexOf('.');
-    if (index == -1) {
-      return "";
-    } else {
-      return filePath.substring(index + 1);
+            String[] tokens = request.split(" ");
+            String method = tokens[0];
+            String path = tokens[1];
+
+            if (method.equals("GET")) {
+                if (path.equals("/login.html")) {
+                    serveLoginHtml(outputStream);
+                } else {
+                    serveFile(outputStream, path);
+                }
+            } else if (method.equals("POST") && path.equals("/login")) {
+                handleLogin(outputStream, reader);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
-  }
 
-  /**
-   * Send an error response to the client.
-   */
-  private static void sendErrorResponse(OutputStream outputStream, int statusCode, String statusText, String errorMessage) throws IOException {
-    PrintWriter writer = new PrintWriter(outputStream);
-    writer.println("HTTP/1.1 " + statusCode + " " + statusText);
-    writer.println();
-    writer.println("<html><head><title>" + statusCode + " " + statusText + "</title></head><body>");
-    writer.println("<h1>" + statusCode + " " + statusText + "</h1>");
-    writer.println("<p>" + errorMessage + "</p>");
-    writer.println("</body></html>");
-    writer.flush();
-    System.out.println("Error: " + statusCode + " " + statusText);
-  }
+    /**
+     * Serves a file requested by the client.
+     * @param outputStream The output stream to the client
+     * @param filePath The path of the requested file
+     */
+    public static void serveFile(OutputStream outputStream, String filePath) {
+        try {
+            File file = new File(PUBLIC_FOLDER + filePath);
 
-  /**
-   * Send a redirect response to the client.
-   */
-  private static void sendRedirectResponse(OutputStream outputStream) throws IOException {
-    PrintWriter writer = new PrintWriter(outputStream);
-    writer.println("HTTP/1.1 302 Found");
-    writer.println("Location: https://www.example.com");
-    writer.println();
-    writer.flush();
-    System.out.println("Redirecting to: https://www.example.com");
-  }
+            if (file.exists() && !file.isDirectory()) {
+                String extension = getFileExtension(file.getName());
+                String contentType = CONTENT_TYPES.getOrDefault(extension, "application/octet-stream");
+
+                PrintWriter writer = new PrintWriter(outputStream);
+                writer.println("HTTP/1.1 200 OK");
+                writer.println("Content-Type: " + contentType);
+                writer.println("Content-Length: " + file.length());
+                writer.println();
+                writer.flush();
+
+                FileInputStream fileInputStream = new FileInputStream(file);
+                byte[] buffer = new byte[BUFFER_SIZE];
+                int bytesRead;
+                while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                fileInputStream.close();
+            } else {
+                sendErrorResponse(outputStream, 404, "Not Found", "The requested file was not found.");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition.");
+        }
+    }
+
+    /**
+     * Serves the login HTML page.
+     * @param outputStream The output stream to the client
+     */
+    public static void serveLoginHtml(OutputStream outputStream) {
+        try {
+            File file = new File(PUBLIC_FOLDER + "/login.html");
+
+            if (file.exists() && !file.isDirectory()) {
+                PrintWriter writer = new PrintWriter(outputStream);
+                writer.println("HTTP/1.1 200 OK");
+                writer.println("Content-Type: text/html");
+                writer.println("Content-Length: " + file.length());
+                writer.println();
+                writer.flush();
+
+                FileInputStream fileInputStream = new FileInputStream(file);
+                byte[] buffer = new byte[BUFFER_SIZE];
+                int bytesRead;
+                while ((bytesRead = fileInputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+                fileInputStream.close();
+            } else {
+                sendErrorResponse(outputStream, 404, "Not Found", "The login page was not found.");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition.");
+        }
+    }
+
+    /**
+     * Handles login requests.
+     * @param outputStream The output stream to the client
+     * @param reader The buffered reader for reading client input
+     */
+    public static void handleLogin(OutputStream outputStream, BufferedReader reader) {
+        try {
+            String data = reader.readLine();
+            String[] credentials = data.split("&");
+
+            // Extract username and password
+            String username = credentials[0].split("=")[1];
+            String password = credentials[1].split("=")[1];
+
+            // Assuming login credentials are stored in a text file named "credentials.txt"
+            String filename = PUBLIC_FOLDER + "/credentials.txt";
+            Path path = Paths.get(filename);
+
+            if (Files.exists(path)) {
+                String storedCredentials = new String(Files.readAllBytes(path));
+                String[] stored = storedCredentials.split(",");
+                String storedUsername = stored[0];
+                String storedPassword = stored[1];
+
+                if (username.equals(storedUsername) && password.equals(storedPassword)) {
+                    sendSuccessResponse(outputStream);
+                } else {
+                    sendErrorResponse(outputStream, 401, "Unauthorized", "Incorrect username or password.");
+                }
+            } else {
+                sendErrorResponse(outputStream, 401, "Unauthorized", "User credentials file not found.");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition.");
+        }
+    }
+
+    /**
+     * Sends a success response to the client.
+     * @param outputStream The output stream to the client
+     */
+    private static void sendSuccessResponse(OutputStream outputStream) {
+        try {
+            PrintWriter writer = new PrintWriter(outputStream);
+            writer.println("HTTP/1.1 200 OK");
+            writer.println("Content-Type: text/plain");
+            writer.println();
+            writer.println("Login successful!");
+            writer.flush();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Sends an error response to the client.
+     * @param outputStream The output stream to the client
+     * @param statusCode The HTTP status code
+     * @param statusText The status text
+     * @param errorMessage The error message
+     */
+    private static void sendErrorResponse(OutputStream outputStream, int statusCode, String statusText, String errorMessage) {
+        try {
+            PrintWriter writer = new PrintWriter(outputStream);
+            writer.println("HTTP/1.1 " + statusCode + " " + statusText);
+            writer.println();
+            writer.println("<html><head><title>" + statusCode + " " + statusText + "</title></head><body>");
+            writer.println("<h1>" + statusCode + " " + statusText + "</h1>");
+            writer.println("<p>" + errorMessage + "</p>");
+            writer.println("</body></html>");
+            writer.flush();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Gets the file extension from the file name.
+     * @param fileName The file name
+     * @return The file extension
+     */
+    private static String getFileExtension(String fileName) {
+        int index = fileName.lastIndexOf('.');
+        if (index == -1) {
+            return "";
+        } else {
+            return fileName.substring(index + 1);
+        }
+    }
 }
