@@ -15,7 +15,6 @@ import java.nio.file.Paths;
 import java.util.Date;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
-import java.nio.charset.StandardCharsets;
 
 /**
  * A simple web server that can serve static files and handle login
@@ -201,7 +200,7 @@ public class SimpleWebServer {
       String username = URLDecoder.decode(credentials[0].split("=")[1], StandardCharsets.UTF_8);
       String password = URLDecoder.decode(credentials[1].split("=")[1], StandardCharsets.UTF_8);
 
-      // Assuming login credentials are stored in a text file named "credentials.txt"
+      // Assuming login credentials are stored in a text file named "LoginInfo.txt"
       String filename = "/LoginInfo.txt";
       Path path = Paths.get(filename);
 
@@ -260,8 +259,8 @@ public class SimpleWebServer {
 
       System.out.print("Client: " + InetAddress.getLocalHost().getHostAddress());
       System.out.println(", Server: " + InetAddress.getLocalHost().getHostName());
-      System.out.print("Response: HTTP/1.1 " + statusCode + " " + statusText);
-      System.out.print(", Date: " + new Date());
+      System.out.println("Response: HTTP/1.1 " + statusCode + " " + statusText + ", " + errorMessage);
+      System.out.print("Date: " + new Date());
       System.out.println(", Server Name: SimpleWebServer");
       System.out.print(", Connection: close");
       System.out.println(", Content-Type: text/html\n");
