@@ -5,15 +5,18 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Date;
 import java.util.Map;
 
 /**
- * A simple web server that can serve static files and handle login functionality.
+ * A simple web server that can serve static files and handle login
+ * functionality.
  */
 public class SimpleWebServer {
 
@@ -27,11 +30,11 @@ public class SimpleWebServer {
             "htm", "text/html",
             "jpg", "image/jpeg",
             "jpeg", "image/jpeg",
-            "png", "image/png"
-    );
+            "png", "image/png");
 
     /**
      * Main method to start the web server.
+     * 
      * @param args Command-line arguments: [port]
      */
     public static void main(String[] args) {
@@ -58,19 +61,22 @@ public class SimpleWebServer {
 
     /**
      * Handles client requests.
+     * 
      * @param clientSocket The client socket
      */
     public static void handleClientRequest(Socket clientSocket) {
         try (
                 BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                OutputStream outputStream = clientSocket.getOutputStream();
-        ) {
+                OutputStream outputStream = clientSocket.getOutputStream();) {
             String request = reader.readLine();
-            System.out.println("Received request: " + request);
 
             String[] tokens = request.split(" ");
             String method = tokens[0];
             String path = tokens[1];
+            String version = tokens[2];
+
+            System.out.println("Received request: Method: " +
+                    method + ", Path: " + path + ", Version: " + version);
 
             if (method.equals("GET")) {
                 if (path.equals("/login.html")) {
@@ -89,8 +95,9 @@ public class SimpleWebServer {
 
     /**
      * Serves a file requested by the client.
+     * 
      * @param outputStream The output stream to the client
-     * @param filePath The path of the requested file
+     * @param filePath     The path of the requested file
      */
     public static void serveFile(OutputStream outputStream, String filePath) {
         try {
@@ -99,6 +106,15 @@ public class SimpleWebServer {
             if (file.exists() && !file.isDirectory()) {
                 String extension = getFileExtension(file.getName());
                 String contentType = CONTENT_TYPES.getOrDefault(extension, "application/octet-stream");
+
+                System.out.print("Serving file: " + filePath);
+                System.out.print(", Client: " + InetAddress.getLocalHost().getHostAddress());
+                System.out.println(", Server: " + InetAddress.getLocalHost().getHostName());
+                System.out.print("Response: HTTP/1.1 200 OK");
+                System.out.print(", Date: " + new Date());
+                System.out.println(", Server Name: SimpleWebServer");
+                System.out.print("Content-Length: " + file.length());
+                System.out.println(", Connection: close\n");
 
                 PrintWriter writer = new PrintWriter(outputStream);
                 writer.println("HTTP/1.1 200 OK");
@@ -119,12 +135,14 @@ public class SimpleWebServer {
             }
         } catch (IOException e) {
             e.printStackTrace();
-            sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition.");
+            sendErrorResponse(outputStream, 500, "Internal Server Error",
+                    "The server encountered an unexpected condition.");
         }
     }
 
     /**
      * Serves the login HTML page.
+     * 
      * @param outputStream The output stream to the client
      */
     public static void serveLoginHtml(OutputStream outputStream) {
@@ -151,14 +169,16 @@ public class SimpleWebServer {
             }
         } catch (IOException e) {
             e.printStackTrace();
-            sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition.");
+            sendErrorResponse(outputStream, 500, "Internal Server Error",
+                    "The server encountered an unexpected condition.");
         }
     }
 
     /**
      * Handles login requests.
+     * 
      * @param outputStream The output stream to the client
-     * @param reader The buffered reader for reading client input
+     * @param reader       The buffered reader for reading client input
      */
     public static void handleLogin(OutputStream outputStream, BufferedReader reader) {
         try {
@@ -189,12 +209,14 @@ public class SimpleWebServer {
             }
         } catch (IOException e) {
             e.printStackTrace();
-            sendErrorResponse(outputStream, 500, "Internal Server Error", "The server encountered an unexpected condition.");
+            sendErrorResponse(outputStream, 500, "Internal Server Error",
+                    "The server encountered an unexpected condition.");
         }
     }
 
     /**
      * Sends a success response to the client.
+     * 
      * @param outputStream The output stream to the client
      */
     private static void sendSuccessResponse(OutputStream outputStream) {
@@ -212,12 +234,14 @@ public class SimpleWebServer {
 
     /**
      * Sends an error response to the client.
+     * 
      * @param outputStream The output stream to the client
-     * @param statusCode The HTTP status code
-     * @param statusText The status text
+     * @param statusCode   The HTTP status code
+     * @param statusText   The status text
      * @param errorMessage The error message
      */
-    private static void sendErrorResponse(OutputStream outputStream, int statusCode, String statusText, String errorMessage) {
+    private static void sendErrorResponse(OutputStream outputStream, int statusCode, String statusText,
+            String errorMessage) {
         try {
             PrintWriter writer = new PrintWriter(outputStream);
             writer.println("HTTP/1.1 " + statusCode + " " + statusText);
@@ -234,6 +258,7 @@ public class SimpleWebServer {
 
     /**
      * Gets the file extension from the file name.
+     * 
      * @param fileName The file name
      * @return The file extension
      */
