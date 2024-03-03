@@ -24,7 +24,6 @@ public class SimpleWebServer {
 
   // Constants
   private static final int BUFFER_SIZE = 8192;
-  private static final String PUBLIC_FOLDER = "public";
 
   // Map content types for different file extensions
   private static final Map<String, String> CONTENT_TYPES = Map.of(
@@ -40,20 +39,22 @@ public class SimpleWebServer {
    * @param args Command-line arguments: [port]
    */
   public static void main(String[] args) {
-    if (args.length != 1) {
+    if (args.length != 2) {
       System.exit(1);
     }
 
     int port = Integer.parseInt(args[0]);
+    String publicFolderPath = args[1];
     ServerSocket serverSocket = null;
 
     try {
       serverSocket = new ServerSocket(port);
-      System.out.println("Listening for connection on port " + port);
+      System.out.println("Listening for connection on port " + port
+          + ", serving files from " + publicFolderPath);
 
       while (true) {
         Socket clientSocket = serverSocket.accept();
-        handleClientRequest(clientSocket);
+        handleClientRequest(clientSocket, publicFolderPath);
       }
 
     } catch (IOException e) {
@@ -66,12 +67,12 @@ public class SimpleWebServer {
 
    * @param clientSocket The client socket
    */
-  public static void handleClientRequest(Socket clientSocket) {
+  public static void handleClientRequest(Socket clientSocket, String publicFolderPath) {
     try (
         BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         OutputStream outputStream = clientSocket.getOutputStream();) {
-      String request = reader.readLine();
 
+      String request = reader.readLine();
       if (request == null) {
         sendErrorResponse(outputStream, 400, "Bad Request", "Invalid request.");
         return;
@@ -99,15 +100,15 @@ public class SimpleWebServer {
 
       if (method.equals("GET")) {
         if (path.equals("/login.html")) {
-          serveLoginHtml(outputStream);
+          serveLoginHtml(outputStream, publicFolderPath);
         } else if (path.equals("/redirect")) {
           sendRedirectResponse(outputStream, 302, "Found", "Redirecting to /a/b/index.html");
-          serveFile(outputStream, "/a/b/index.html");
+          serveFile(outputStream, "/a/b/index.html", publicFolderPath);
         } else {
-          serveFile(outputStream, path);
+          serveFile(outputStream, path, publicFolderPath);
         }
       } else if (method.equals("POST") && path.equals("/login")) {
-        handleLogin(outputStream, reader);
+        handleLogin(outputStream, reader, publicFolderPath);
       }
 
     } catch (IOException e) {
@@ -121,9 +122,9 @@ public class SimpleWebServer {
    * @param outputStream The output stream to the client
    * @param filePath     The path of the requested file
    */
-  public static void serveFile(OutputStream outputStream, String filePath) {
+  public static void serveFile(OutputStream outputStream, String filePath, String publicFolderPath) {
     try {
-      File file = new File(PUBLIC_FOLDER + filePath);
+      File file = new File(publicFolderPath + filePath);
 
       if (file.exists()) {
         if (file.isDirectory()) {
@@ -178,9 +179,9 @@ public class SimpleWebServer {
 
    * @param outputStream The output stream to the client
    */
-  public static void serveLoginHtml(OutputStream outputStream) {
+  public static void serveLoginHtml(OutputStream outputStream, String publicFolderPath) {
     try {
-      File file = new File(PUBLIC_FOLDER + "/login.html");
+      File file = new File(publicFolderPath + "/login.html");
 
       if (file.exists() && !file.isDirectory()) {
         PrintWriter writer = new PrintWriter(outputStream);
@@ -213,7 +214,7 @@ public class SimpleWebServer {
    * @param outputStream The output stream to the client
    * @param reader       The buffered reader for reading client input
    */
-  public static void handleLogin(OutputStream outputStream, BufferedReader reader) {
+  public static void handleLogin(OutputStream outputStream, BufferedReader reader, String publicFolderPath) {
     try {
       String data = reader.readLine();
 
@@ -238,7 +239,7 @@ public class SimpleWebServer {
         String storedPassword = stored[1];
 
         if (username.equals(storedUsername) && password.equals(storedPassword)) {
-          sendSuccessResponse(outputStream);
+          sendSuccessResponse(outputStream, publicFolderPath);
         } else {
           sendErrorResponse(outputStream, 401, "Unauthorized", "Incorrect username or password.");
         }
@@ -257,7 +258,7 @@ public class SimpleWebServer {
 
    * @param outputStream The output stream to the client
    */
-  private static void sendSuccessResponse(OutputStream outputStream) {
+  private static void sendSuccessResponse(OutputStream outputStream, String publicFolderPath) {
     try {
       PrintWriter writer = new PrintWriter(outputStream);
       writer.println("HTTP/1.1 200 OK");
@@ -266,7 +267,7 @@ public class SimpleWebServer {
       writer.println("Login successful!");
       writer.flush();
 
-      serveFile(outputStream, "/PngInsert.html");
+      serveFile(outputStream, "/PngInsert.html", publicFolderPath);
     } catch (Exception e) {
       e.printStackTrace();
     }
