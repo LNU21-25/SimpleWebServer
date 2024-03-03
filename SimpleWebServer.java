@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -78,6 +79,8 @@ public class SimpleWebServer {
         return;
       }
 
+      System.out.println("Received request: " + request);
+
       String[] tokens = request.split(" ");
       String method;
       String path;
@@ -87,8 +90,7 @@ public class SimpleWebServer {
         path = tokens[1];
         version = tokens[2];
 
-        System.out.println("Received request: Method: "
-            + method + ", Path: " + path + ", Version: " + version);
+        System.out.println("Method: " + method + ", Path: " + path + ", Version: " + version);
       } else {
         sendErrorResponse(outputStream, 400, "Bad Request", "Invalid request.");
         return;
@@ -107,8 +109,13 @@ public class SimpleWebServer {
         } else {
           serveFile(outputStream, path, publicFolderPath);
         }
-      } else if (method.equals("POST") && path.equals("/login")) {
+      } else if (method.equals("POST") && path.equals("/login.html")) {
         handleLogin(outputStream, reader, publicFolderPath);
+      } else if (method.equals("POST") && path.equals("/upload")) {
+        handleImageUpload(outputStream, reader, publicFolderPath);
+      } else {
+        // Handle other request methods.
+        sendErrorResponse(outputStream, 404, "Not Found", "The requested resource was not found.");
       }
 
     } catch (IOException e) {
@@ -210,46 +217,124 @@ public class SimpleWebServer {
 
   /**
    * Handles login requests.
-
-   * @param outputStream The output stream to the client
-   * @param reader       The buffered reader for reading client input
+   *
+   * @param outputStream    The output stream to the client
+   * @param reader          The buffered reader for reading client input
+   * @param publicFolderPath The public folder path
    */
   public static void handleLogin(OutputStream outputStream, BufferedReader reader, String publicFolderPath) {
     try {
-      String data = reader.readLine();
+      System.out.println("Handling login request...");
 
-      while (reader.ready()) {
-        data += reader.readLine();
+      StringBuilder requestData = new StringBuilder();
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.isEmpty()) {
+          break;
+        }
+        requestData.append(line).append("\n");
       }
-      System.out.println(data);
-      String[] credentials = data.split("&");
 
-      // Extract username and password
-      String username = URLDecoder.decode(credentials[0].split("=")[1], StandardCharsets.UTF_8);
-      String password = URLDecoder.decode(credentials[1].split("=")[1], StandardCharsets.UTF_8);
+      System.out.println("Received login request body : " + requestData.toString());
 
-      // Assuming login credentials are stored in a text file named "LoginInfo.txt"
-      String filename = "/LoginInfo.txt";
-      Path path = Paths.get(filename);
+      String[] formData = requestData.toString().split("&");
 
-      if (Files.exists(path)) {
-        String storedCredentials = new String(Files.readAllBytes(path));
-        String[] stored = storedCredentials.split("=");
-        String storedUsername = stored[0];
-        String storedPassword = stored[1];
+      String username = null;
+      String password = null;
 
-        if (username.equals(storedUsername) && password.equals(storedPassword)) {
-          sendSuccessResponse(outputStream, publicFolderPath);
+      for (String pair : formData) {
+        String[] keyValue = pair.split("=");
+        if (keyValue.length == 2) {
+          String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
+          String value = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+          System.out.println("Key: " + key + ", Value: " + value);
+          if ("username".equals(key)) {
+            username = value;
+          } else if ("password".equals(key)) {
+            password = value;
+          }
+        }
+      }
+
+      if (username != null && password != null) {
+        System.out.println("Username: " + username + ", Password: " + password);
+
+        // Assuming login credentials are stored in a text file named "LoginInfo.txt"
+        String filename = publicFolderPath + "/LoginInfo.txt";
+        Path path = Paths.get(filename);
+
+        if (Files.exists(path)) {
+          System.out.println("LoginInfo.txt found.");
+
+          List<String> lines = Files.readAllLines(path);
+          if (!lines.isEmpty()) {
+            String storedCredentials = lines.get(0);
+            String[] stored = storedCredentials.split("=");
+
+            if (stored.length == 2) {
+              String storedUsername = stored[0].trim();
+              String storedPassword = stored[1].trim();
+              System.out.println("Stored username: " + storedUsername + ", Stored password: " + storedPassword);
+              if (username.equals(storedUsername) && password.equals(storedPassword)) {
+                System.out.println("Login successful!");
+                sendSuccessResponse(outputStream, publicFolderPath);
+              } else {
+                System.out.println("Incorrect username or password.");
+                sendErrorResponse(outputStream, 401, "Unauthorized", "Incorrect username or password.");
+              }
+            } else {
+              System.out.println("Invalid format in LoginInfo.txt.");
+              sendErrorResponse(outputStream, 500, "Internal Server Error",
+                    "The server encountered an unexpected condition.");
+            }
+          } else {
+            System.out.println("LoginInfo.txt is empty.");
+            sendErrorResponse(outputStream, 500, "Internal Server Error",
+                "The server encountered an unexpected condition.");
+          }
         } else {
-          sendErrorResponse(outputStream, 401, "Unauthorized", "Incorrect username or password.");
+          System.out.println("LoginInfo.txt not found.");
+          sendErrorResponse(outputStream, 401, "Unauthorized", "User credentials file not found.");
         }
       } else {
-        sendErrorResponse(outputStream, 401, "Unauthorized", "User credentials file not found.");
+        System.out.println("Invalid login credentials format.");
+        sendErrorResponse(outputStream, 400, "Bad Request", "Invalid login request.");
       }
     } catch (IOException e) {
       e.printStackTrace();
       sendErrorResponse(outputStream, 500, "Internal Server Error",
-          "The server encountered an unexpected condition.");
+                "The server encountered an unexpected condition.");
+    }
+  }
+
+  /**
+   * Handles image upload requests.
+
+   * @param outputStream The output stream to the client.
+   * @param reader The buffered reader for reading client input.
+   * @param publicFolderPath The public folder path.
+   */
+  public static void handleImageUpload(OutputStream outputStream, BufferedReader reader, String publicFolderPath) {
+    try {
+      MultiPartFormData formData = new MultiPartFormData();
+
+      byte[] imageData = formData.getFile("image");
+
+      String uploadPath = "/uploads";
+      String fileName = uploadPath + "/uploaded_image.jpg";
+      Files.write(Paths.get(publicFolderPath + fileName), imageData);
+
+      PrintWriter writer = new PrintWriter(outputStream);
+      writer.println("HTTP/1.1 200 OK");
+      writer.println("Content-Type: text/plain");
+      writer.println();
+      writer.println("Image uploaded successfully!");
+      writer.println("Location: " + fileName);
+      writer.flush();
+    } catch (IOException e) {
+      e.printStackTrace();
+      sendErrorResponse(outputStream, 500, "Internal Server Error",
+          "Error handling image upload.");
     }
   }
 
@@ -265,9 +350,11 @@ public class SimpleWebServer {
       writer.println("Content-Type: text/plain");
       writer.println();
       writer.println("Login successful!");
-      writer.flush();
 
-      serveFile(outputStream, "/PngInsert.html", publicFolderPath);
+      // Redirect to the login page
+      writer.println("Location: /login.html");
+      writer.println();
+      writer.flush();
     } catch (Exception e) {
       e.printStackTrace();
     }
