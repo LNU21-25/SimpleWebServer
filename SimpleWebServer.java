@@ -80,6 +80,10 @@ public class SimpleWebServer {
       System.out.println("Received request: Method: " +
           method + ", Path: " + path + ", Version: " + version);
 
+      if (path.equals("/")) {
+        path = "/index.html";
+      }
+
       if (method.equals("GET")) {
         if (path.equals("/login.html")) {
           serveLoginHtml(outputStream);
@@ -108,7 +112,17 @@ public class SimpleWebServer {
     try {
       File file = new File(PUBLIC_FOLDER + filePath);
 
-      if (file.exists() && !file.isDirectory()) {
+      if (file.exists()) {
+        if (file.isDirectory()) {
+          File indexFile = new File(file, "index.html");
+          if (indexFile.exists() && !indexFile.isDirectory()) {
+            file = indexFile;
+          } else {
+            sendErrorResponse(outputStream, 404, "Not Found", "The requested file was not found.");
+            return;
+          }
+        }
+        
         String extension = getFileExtension(file.getName());
         String contentType = CONTENT_TYPES.getOrDefault(extension, "application/octet-stream");
 
