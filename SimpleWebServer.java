@@ -9,12 +9,12 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Date;
 import java.util.Map;
-import java.nio.charset.StandardCharsets;
 
 /**
  * A simple web server that can serve static files and handle login
@@ -36,7 +36,7 @@ public class SimpleWebServer {
 
   /**
    * Main method to start the web server.
-   * 
+
    * @param args Command-line arguments: [port]
    */
   public static void main(String[] args) {
@@ -63,7 +63,7 @@ public class SimpleWebServer {
 
   /**
    * Handles client requests.
-   * 
+
    * @param clientSocket The client socket
    */
   public static void handleClientRequest(Socket clientSocket) {
@@ -72,13 +72,26 @@ public class SimpleWebServer {
         OutputStream outputStream = clientSocket.getOutputStream();) {
       String request = reader.readLine();
 
-      String[] tokens = request.split(" ");
-      String method = tokens[0];
-      String path = tokens[1];
-      String version = tokens[2];
+      if (request == null) {
+        sendErrorResponse(outputStream, 400, "Bad Request", "Invalid request.");
+        return;
+      }
 
-      System.out.println("Received request: Method: " +
-          method + ", Path: " + path + ", Version: " + version);
+      String[] tokens = request.split(" ");
+      String method;
+      String path;
+      String version;
+      if (tokens.length >= 3) {
+        method = tokens[0];
+        path = tokens[1];
+        version = tokens[2];
+
+        System.out.println("Received request: Method: "
+            + method + ", Path: " + path + ", Version: " + version);
+      } else {
+        sendErrorResponse(outputStream, 400, "Bad Request", "Invalid request.");
+        return;
+      }
 
       if (path.equals("/")) {
         path = "/index.html";
@@ -104,7 +117,7 @@ public class SimpleWebServer {
 
   /**
    * Serves a file requested by the client.
-   * 
+
    * @param outputStream The output stream to the client
    * @param filePath     The path of the requested file
    */
@@ -122,7 +135,7 @@ public class SimpleWebServer {
             return;
           }
         }
-        
+
         String extension = getFileExtension(file.getName());
         String contentType = CONTENT_TYPES.getOrDefault(extension, "application/octet-stream");
 
@@ -162,7 +175,7 @@ public class SimpleWebServer {
 
   /**
    * Serves the login HTML page.
-   * 
+
    * @param outputStream The output stream to the client
    */
   public static void serveLoginHtml(OutputStream outputStream) {
@@ -196,7 +209,7 @@ public class SimpleWebServer {
 
   /**
    * Handles login requests.
-   * 
+
    * @param outputStream The output stream to the client
    * @param reader       The buffered reader for reading client input
    */
@@ -241,7 +254,7 @@ public class SimpleWebServer {
 
   /**
    * Sends a success response to the client.
-   * 
+
    * @param outputStream The output stream to the client
    */
   private static void sendSuccessResponse(OutputStream outputStream) {
@@ -261,7 +274,7 @@ public class SimpleWebServer {
 
   /**
    * Sends an error response to the client.
-   * 
+
    * @param outputStream The output stream to the client
    * @param statusCode   The HTTP status code
    * @param statusText   The status text
@@ -314,7 +327,7 @@ public class SimpleWebServer {
 
   /**
    * Gets the file extension from the file name.
-   * 
+
    * @param fileName The file name
    * @return The file extension
    */
