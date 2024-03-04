@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.io.FileReader;
 
 /**
  * A simple web server that can serve static files and handle login
@@ -110,7 +111,7 @@ public class SimpleWebServer {
           serveFile(outputStream, path, publicFolderPath);
         }
       } else if (method.equals("POST") && path.equals("/login")) {
-        System.out.println("Handling login request...");
+        System.out.println("\nHandling login request...");
         handleLogin(outputStream, reader, publicFolderPath);
       } else if (method.equals("POST") && path.equals("/upload")) {
         handleImageUpload(outputStream, reader, publicFolderPath);
@@ -225,28 +226,23 @@ public class SimpleWebServer {
    */
   public static void handleLogin(OutputStream outputStream, BufferedReader reader, String publicFolderPath) {
     try {
-      StringBuilder requestData = new StringBuilder();
-      String line;
-      while ((line = reader.readLine()) != null) {
-        if (line.isEmpty()) {
-          break;
-        }
-        requestData.append(line).append("\n");
+      boolean accessGranted = false;
+      String data = "";
+      while (reader.ready()) {
+        data += (char) reader.read();
       }
+      String cutHeaders = data.substring(data.indexOf("\r\n\r\n") + 4);
 
-      System.out.println("\nReceived login request body : " + requestData.toString());
+      String[] formData = cutHeaders.split("&");
 
-      String[] formData = requestData.toString().split("&");
-
-      String username = null;
-      String password = null;
+      String username = "";
+      String password = "";
 
       for (String pair : formData) {
         String[] keyValue = pair.split("=");
         if (keyValue.length == 2) {
-          String key = URLDecoder.decode(keyValue[0], StandardCharsets.UTF_8);
-          String value = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
-          System.out.println("Key: " + key + ", Value: " + value);
+          String key = keyValue[0];
+          String value = keyValue[1];
           if ("username".equals(key)) {
             username = value;
           } else if ("password".equals(key)) {
@@ -256,48 +252,43 @@ public class SimpleWebServer {
       }
 
       if (username != null && password != null) {
-        System.out.println("Username: " + username + ", Password: " + password);
-
-        // Assuming login credentials are stored in a text file named "LoginInfo.txt"
-        String filename = publicFolderPath + "/LoginInfo.txt";
-        Path path = Paths.get(filename);
-
-        if (Files.exists(path)) {
+        System.out.println("\nUsername: " + username + ", Password: " + password);
+        String workingDir = System.getProperty("user.dir");
+        String filename = "LoginInfo.txt";
+        File file = new File(workingDir ,"LoginInfo.txt");
+        if (file.exists()) {
           System.out.println("LoginInfo.txt found.");
-
-          List<String> lines = Files.readAllLines(path);
-          if (!lines.isEmpty()) {
-            String storedCredentials = lines.get(0);
-            String[] stored = storedCredentials.split("=");
-
-            if (stored.length == 2) {
-              String storedUsername = stored[0].trim();
-              String storedPassword = stored[1].trim();
-              System.out.println("Stored username: " + storedUsername + ", Stored password: " + storedPassword);
-              if (username.equals(storedUsername) && password.equals(storedPassword)) {
-                System.out.println("Login successful!");
-                sendSuccessResponse(outputStream, publicFolderPath);
-              } else {
-                System.out.println("Incorrect username or password.");
-                sendErrorResponse(outputStream, 401, "Unauthorized", "Incorrect username or password.");
-              }
-            } else {
-              System.out.println("Invalid format in LoginInfo.txt.");
-              sendErrorResponse(outputStream, 500, "Internal Server Error",
-                    "The server encountered an unexpected condition.");
+          String userData = "";
+          try {
+            FileReader fr = new FileReader(filename);
+            while (fr.ready()) {
+              char c = (char) fr.read();
+              userData += c;
             }
-          } else {
-            System.out.println("LoginInfo.txt is empty.");
+            String[] userDatas = userData.split("\n");
+            for (String user : userDatas) {
+              String[] userCreds = user.split("=");
+              System.out.println("User: " + userCreds[0] + ", Password: " + userCreds[1]);
+              if (userCreds[0].equals(username) && userCreds[1].equals(password)) {
+                accessGranted = true;
+                break;
+              }
+            }
+            if (!accessGranted) {
+              sendErrorResponse(outputStream, 401, "Unauthorized", "Invalid username or password.");
+            } else {
+              sendSuccessResponse(outputStream, publicFolderPath);
+            }
+            fr.close();
+          } catch (IOException e) {
+            e.printStackTrace();
             sendErrorResponse(outputStream, 500, "Internal Server Error",
                 "The server encountered an unexpected condition.");
           }
         } else {
-          System.out.println("LoginInfo.txt not found.");
-          sendErrorResponse(outputStream, 401, "Unauthorized", "User credentials file not found.");
+          sendErrorResponse(outputStream, 500, "Internal Server Error",
+              "The server encountered an unexpected condition.");
         }
-      } else {
-        System.out.println("Invalid login credentials format.");
-        sendErrorResponse(outputStream, 400, "Bad Request", "Invalid login request.");
       }
     } catch (IOException e) {
       e.printStackTrace();

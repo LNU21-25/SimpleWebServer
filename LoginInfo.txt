@@ -1,2 +1,2 @@
-username=elias
-password=michalsky
+elias=michalsky
+henry=shafer
