@@ -109,7 +109,8 @@ public class SimpleWebServer {
         } else {
           serveFile(outputStream, path, publicFolderPath);
         }
-      } else if (method.equals("POST") && path.equals("/login.html")) {
+      } else if (method.equals("POST") && path.equals("/login")) {
+        System.out.println("Handling login request...");
         handleLogin(outputStream, reader, publicFolderPath);
       } else if (method.equals("POST") && path.equals("/upload")) {
         handleImageUpload(outputStream, reader, publicFolderPath);
@@ -153,8 +154,8 @@ public class SimpleWebServer {
         System.out.print("Response: HTTP/1.1 200 OK");
         System.out.print(", Date: " + new Date());
         System.out.println(", Server Name: SimpleWebServer");
-        System.out.print("Content-Length: " + file.length());
-        System.out.print(", Connection: close");
+        System.out.print("Content-Length: " + file.length() + ", ");
+        System.out.print("Connection: close");
         System.out.println(", Content-Type: " + contentType + "\n");
 
         PrintWriter writer = new PrintWriter(outputStream);
@@ -224,8 +225,6 @@ public class SimpleWebServer {
    */
   public static void handleLogin(OutputStream outputStream, BufferedReader reader, String publicFolderPath) {
     try {
-      System.out.println("Handling login request...");
-
       StringBuilder requestData = new StringBuilder();
       String line;
       while ((line = reader.readLine()) != null) {
@@ -235,7 +234,7 @@ public class SimpleWebServer {
         requestData.append(line).append("\n");
       }
 
-      System.out.println("Received login request body : " + requestData.toString());
+      System.out.println("\nReceived login request body : " + requestData.toString());
 
       String[] formData = requestData.toString().split("&");
 
@@ -376,8 +375,8 @@ public class SimpleWebServer {
       System.out.println(", Server: " + InetAddress.getLocalHost().getHostName());
       System.out.println("Response: HTTP/1.1 " + statusCode + " " + statusText + ", " + errorMessage);
       System.out.print("Date: " + new Date());
-      System.out.println(", Server Name: SimpleWebServer");
-      System.out.print(", Connection: close");
+      System.out.println(", Server Name: SimpleWebServer, ");
+      System.out.print("Connection: close");
       System.out.println(", Content-Type: text/html\n");
 
       PrintWriter writer = new PrintWriter(outputStream);
