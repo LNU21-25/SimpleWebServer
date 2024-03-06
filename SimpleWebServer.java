@@ -1,6 +1,7 @@
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -8,15 +9,8 @@ import java.io.PrintWriter;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Date;
-import java.util.List;
 import java.util.Map;
-import java.io.FileReader;
 
 /**
  * A simple web server that can serve static files and handle login
@@ -113,8 +107,6 @@ public class SimpleWebServer {
       } else if (method.equals("POST") && path.equals("/login")) {
         System.out.println("\nHandling login request...");
         handleLogin(outputStream, reader, publicFolderPath);
-      } else if (method.equals("POST") && path.equals("/upload")) {
-        handleImageUpload(outputStream, reader, publicFolderPath);
       } else {
         // Handle other request methods.
         sendErrorResponse(outputStream, 404, "Not Found", "The requested resource was not found.");
@@ -255,7 +247,7 @@ public class SimpleWebServer {
         System.out.println("\nUsername: " + username + ", Password: " + password);
         String workingDir = System.getProperty("user.dir");
         String filename = "LoginInfo.txt";
-        File file = new File(workingDir ,"LoginInfo.txt");
+        File file = new File(workingDir, "LoginInfo.txt");
         if (file.exists()) {
           System.out.println("LoginInfo.txt found.");
           String userData = "";
@@ -265,13 +257,25 @@ public class SimpleWebServer {
               char c = (char) fr.read();
               userData += c;
             }
+
+            // Wrong format in LoginInfo.txt, send 500.
+            if (!userData.contains("=")) {
+              sendErrorResponse(outputStream, 500, "Internal Server Error",
+                  "The server encountered an unexpected condition.");
+            }
+
             String[] userDatas = userData.split("\n");
             for (String user : userDatas) {
               String[] userCreds = user.split("=");
-              System.out.println("User: " + userCreds[0] + ", Password: " + userCreds[1]);
-              if (userCreds[0].equals(username) && userCreds[1].equals(password)) {
-                accessGranted = true;
-                break;
+              if (userCreds.length == 2) {
+                System.out.println("User: " + userCreds[0] + ", Password: " + userCreds[1]);
+                if (userCreds[0].equals(username) && userCreds[1].equals(password)) {
+                  accessGranted = true;
+                  break;
+                }
+              } else {
+                sendErrorResponse(outputStream, 500, "Internal Server Error",
+                    "The server encountered an unexpected condition.");
               }
             }
             if (!accessGranted) {
@@ -294,37 +298,6 @@ public class SimpleWebServer {
       e.printStackTrace();
       sendErrorResponse(outputStream, 500, "Internal Server Error",
                 "The server encountered an unexpected condition.");
-    }
-  }
-
-  /**
-   * Handles image upload requests.
-
-   * @param outputStream The output stream to the client.
-   * @param reader The buffered reader for reading client input.
-   * @param publicFolderPath The public folder path.
-   */
-  public static void handleImageUpload(OutputStream outputStream, BufferedReader reader, String publicFolderPath) {
-    try {
-      MultiPartFormData formData = new MultiPartFormData();
-
-      byte[] imageData = formData.getFile("image");
-
-      String uploadPath = "/uploads";
-      String fileName = uploadPath + "/uploaded_image.jpg";
-      Files.write(Paths.get(publicFolderPath + fileName), imageData);
-
-      PrintWriter writer = new PrintWriter(outputStream);
-      writer.println("HTTP/1.1 200 OK");
-      writer.println("Content-Type: text/plain");
-      writer.println();
-      writer.println("Image uploaded successfully!");
-      writer.println("Location: " + fileName);
-      writer.flush();
-    } catch (IOException e) {
-      e.printStackTrace();
-      sendErrorResponse(outputStream, 500, "Internal Server Error",
-          "Error handling image upload.");
     }
   }
 
